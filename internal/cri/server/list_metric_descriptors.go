@@ -299,6 +299,11 @@ var (
 		Help:      "CPU share of the container",
 		LabelKeys: baseLabelKeys,
 	}
+	containerSpecCPUQuota = &runtime.MetricDescriptor{
+		Name:      "container_spec_cpu_quota",
+		Help:      "CPU quota of the container",
+		LabelKeys: baseLabelKeys,
+	}
 	containerSpecMemoryLimitBytes = &runtime.MetricDescriptor{
 		Name:      "container_spec_memory_limit_bytes",
 		Help:      "Memory limit for the container",

@@ -44,6 +44,7 @@ import (
 	containerstore "github.com/containerd/containerd/v2/internal/cri/store/container"
 	sandboxstore "github.com/containerd/containerd/v2/internal/cri/store/sandbox"
 	"github.com/containerd/containerd/v2/internal/cri/util"
+	"github.com/containerd/containerd/v2/pkg/oci"
 	"github.com/containerd/containerd/v2/plugins"
 )
 
@@ -915,10 +916,13 @@ func (c *criService) extractContainerSpecMetrics(ctx context.Context, task conta
 	if err != nil {
 		return nil, fmt.Errorf("failed to get task spec: %w", err)
 	}
+	return buildContainerSpecMetrics(taskSpec, labels, timestamp), nil
+}
 
-	// No resource limits are set. No error but no metrics too.
+func buildContainerSpecMetrics(taskSpec *oci.Spec, labels []string, timestamp int64) []*runtime.Metric {
+	// No resource limits are set. No metrics too.
 	if taskSpec.Linux == nil || taskSpec.Linux.Resources == nil {
-		return nil, nil
+		return nil
 	}
 	resource := taskSpec.Linux.Resources
 
@@ -940,6 +944,15 @@ func (c *criService) extractContainerSpecMetrics(ctx context.Context, task conta
 				MetricType:  runtime.MetricType_GAUGE,
 				LabelValues: labels,
 				Value:       &runtime.UInt64Value{Value: *cpuResource.Shares},
+			})
+		}
+		if cpuResource.Quota != nil {
+			metrics = append(metrics, &runtime.Metric{
+				Name:        containerSpecCPUQuota.Name,
+				Timestamp:   timestamp,
+				MetricType:  runtime.MetricType_GAUGE,
+				LabelValues: labels,
+				Value:       &runtime.UInt64Value{Value: uint64(*cpuResource.Quota)},
 			})
 		}
 	}
@@ -973,7 +986,7 @@ func (c *criService) extractContainerSpecMetrics(ctx context.Context, task conta
 			})
 		}
 	}
-	return metrics, nil
+	return metrics
 }
 
 // findContainerTaskRootfs tries to find the rootfs of a container,

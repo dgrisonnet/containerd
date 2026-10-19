@@ -96,6 +96,7 @@ func (c *criService) getMetricDescriptors() map[string][]*runtime.MetricDescript
 		ContainerSpecMetrics: {
 			containerSpecCPUPeriod,
 			containerSpecCPUShares,
+			containerSpecCPUQuota,
 			containerSpecMemoryLimitBytes,
 			containerSpecMemoryReservationLimitBytes,
 			containerSpecMemorySwapLimitBytes,
