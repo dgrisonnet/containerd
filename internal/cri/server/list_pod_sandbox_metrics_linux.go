@@ -286,6 +286,12 @@ func (c *criService) collectContainerMetrics(ctx context.Context, container cont
 	}
 	containerMetrics.Metrics = append(containerMetrics.Metrics, cpuMetrics...)
 
+	pressureMetrics, err := c.extractPressureMetrics(metrics, containerLabels, timestamp)
+	if err != nil {
+		log.G(ctx).WithField("containerid", container.ID).WithError(err).Info("failed to extract pressure metrics")
+	}
+	containerMetrics.Metrics = append(containerMetrics.Metrics, pressureMetrics...)
+
 	memoryMetrics, err := c.extractMemoryMetrics(metrics, containerLabels, timestamp)
 	if err != nil {
 		log.G(ctx).WithField("containerid", container.ID).WithError(err).Info("failed to extract memory metrics")
@@ -433,6 +439,54 @@ func (c *criService) extractCPUMetrics(stats cgroupMetrics, labels []string, tim
 				},
 			}...)
 		}
+	}
+
+	return metrics, nil
+}
+
+// extractPressureMetrics emits PSI pressure metrics. PSI is exposed by cgroup v2
+// only, so nothing is emitted for cgroup v1.
+func (c *criService) extractPressureMetrics(stats cgroupMetrics, labels []string, timestamp int64) ([]*runtime.Metric, error) {
+	if stats.v2 == nil {
+		return nil, nil
+	}
+	s := stats.v2
+
+	var metrics []*runtime.Metric
+	appendPSI := func(psi *cg2.PSIStats, stalled, waiting string) {
+		if psi == nil {
+			return
+		}
+		// Full is the time all tasks were stalled; Some is the time at least one
+		// task waited. PSIData.Total is in microseconds.
+		if psi.Full != nil {
+			metrics = append(metrics, &runtime.Metric{
+				Name:        stalled,
+				Timestamp:   timestamp,
+				MetricType:  runtime.MetricType_COUNTER,
+				LabelValues: labels,
+				Value:       &runtime.UInt64Value{Value: psi.Full.Total / uint64(time.Second/time.Microsecond)},
+			})
+		}
+		if psi.Some != nil {
+			metrics = append(metrics, &runtime.Metric{
+				Name:        waiting,
+				Timestamp:   timestamp,
+				MetricType:  runtime.MetricType_COUNTER,
+				LabelValues: labels,
+				Value:       &runtime.UInt64Value{Value: psi.Some.Total / uint64(time.Second/time.Microsecond)},
+			})
+		}
+	}
+
+	if s.CPU != nil {
+		appendPSI(s.CPU.PSI, containerPressureCPUStalledSecondsTotal.Name, containerPressureCPUWaitingSecondsTotal.Name)
+	}
+	if s.Memory != nil {
+		appendPSI(s.Memory.PSI, containerPressureMemoryStalledSecondsTotal.Name, containerPressureMemoryWaitingSecondsTotal.Name)
+	}
+	if s.Io != nil {
+		appendPSI(s.Io.PSI, containerPressureIOStalledSecondsTotal.Name, containerPressureIOWaitingSecondsTotal.Name)
 	}
 
 	return metrics, nil
