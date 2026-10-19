@@ -292,6 +292,12 @@ func (c *criService) collectContainerMetrics(ctx context.Context, container cont
 	}
 	containerMetrics.Metrics = append(containerMetrics.Metrics, memoryMetrics...)
 
+	hugetlbMetrics, err := c.extractHugetlbMetrics(metrics, containerLabels, timestamp)
+	if err != nil {
+		log.G(ctx).WithField("containerid", container.ID).WithError(err).Info("failed to extract hugetlb metrics")
+	}
+	containerMetrics.Metrics = append(containerMetrics.Metrics, hugetlbMetrics...)
+
 	diskMetrics, err := c.extractDiskIOMetrics(metrics, containerLabels, timestamp)
 	if err != nil {
 		log.G(ctx).WithField("containerid", container.ID).WithError(err).Info("failed to extract disk metrics")
@@ -677,6 +683,56 @@ func (c *criService) extractMemoryMetrics(stats cgroupMetrics, labels []string, 
 					MetricType:  runtime.MetricType_COUNTER,
 					LabelValues: labels,
 					Value:       &runtime.UInt64Value{Value: s.MemoryEvents.GetOomKill()},
+				},
+			}...)
+		}
+	}
+
+	return metrics, nil
+}
+
+func (c *criService) extractHugetlbMetrics(stats cgroupMetrics, labels []string, timestamp int64) ([]*runtime.Metric, error) {
+	var metrics []*runtime.Metric
+
+	switch {
+	case stats.v1 != nil:
+		for _, entry := range stats.v1.Hugetlb {
+			hugetlbLabels := append(append([]string(nil), labels...), entry.Pagesize)
+			metrics = append(metrics, []*runtime.Metric{
+				{
+					Name:        containerHugetlbUsageBytes.Name,
+					Timestamp:   timestamp,
+					MetricType:  runtime.MetricType_GAUGE,
+					LabelValues: hugetlbLabels,
+					Value:       &runtime.UInt64Value{Value: entry.Usage},
+				},
+				{
+					Name:        containerHugetlbMaxUsageBytes.Name,
+					Timestamp:   timestamp,
+					MetricType:  runtime.MetricType_GAUGE,
+					LabelValues: hugetlbLabels,
+					Value:       &runtime.UInt64Value{Value: entry.Max},
+				},
+			}...)
+		}
+
+	case stats.v2 != nil:
+		for _, entry := range stats.v2.Hugetlb {
+			hugetlbLabels := append(append([]string(nil), labels...), entry.Pagesize)
+			metrics = append(metrics, []*runtime.Metric{
+				{
+					Name:        containerHugetlbUsageBytes.Name,
+					Timestamp:   timestamp,
+					MetricType:  runtime.MetricType_GAUGE,
+					LabelValues: hugetlbLabels,
+					Value:       &runtime.UInt64Value{Value: entry.Current},
+				},
+				{
+					Name:        containerHugetlbMaxUsageBytes.Name,
+					Timestamp:   timestamp,
+					MetricType:  runtime.MetricType_GAUGE,
+					LabelValues: hugetlbLabels,
+					Value:       &runtime.UInt64Value{Value: entry.Max},
 				},
 			}...)
 		}

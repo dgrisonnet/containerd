@@ -29,6 +29,7 @@ const (
 	ProcessMetrics       = "process"
 	MiscellaneousMetrics = "misc"
 	ContainerSpecMetrics = "container_spec"
+	HugetlbMetrics       = "hugetlb"
 )
 
 var (
@@ -313,5 +314,19 @@ var (
 		Name:      "container_spec_memory_swap_limit_bytes",
 		Help:      "Memory swap limit for the container",
 		LabelKeys: baseLabelKeys,
+	}
+)
+
+// Hugetlb metrics
+var (
+	containerHugetlbUsageBytes = &runtime.MetricDescriptor{
+		Name:      "container_hugetlb_usage_bytes",
+		Help:      "Current hugepage usage in bytes",
+		LabelKeys: append(append([]string(nil), baseLabelKeys...), "pagesize"),
+	}
+	containerHugetlbMaxUsageBytes = &runtime.MetricDescriptor{
+		Name:      "container_hugetlb_max_usage_bytes",
+		Help:      "Maximum hugepage usage recorded in bytes",
+		LabelKeys: append(append([]string(nil), baseLabelKeys...), "pagesize"),
 	}
 )

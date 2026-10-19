@@ -100,6 +100,10 @@ func (c *criService) getMetricDescriptors() map[string][]*runtime.MetricDescript
 			containerSpecMemoryReservationLimitBytes,
 			containerSpecMemorySwapLimitBytes,
 		},
+		HugetlbMetrics: {
+			containerHugetlbUsageBytes,
+			containerHugetlbMaxUsageBytes,
+		},
 	}
 	return descriptors
 }
